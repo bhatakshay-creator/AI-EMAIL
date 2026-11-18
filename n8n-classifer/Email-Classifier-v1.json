@@ -1,0 +1,113 @@
+{
+  "name": "Email Classifier",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ceeb838f-33eb-488a-b11b-3b122d976b67",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "q5hFQ6f0cq63dYlR",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-4-hydrogen:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "=json",
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "jsonBody": "={{ JSON.stringify({\n  systemInstruction: { parts: [{ text: \"You classify emails for a college student. Return ONLY JSON with keys: priority, topic, confidence, summary. priority must be one of: important, normal, spam. topic must be one of: placements, ads, academics, other. Important means placement drives, interview or test schedules, exam notices, deadlines, and messages from professors or the college. Ads means promotions, newsletters and marketing. Spam means unsolicited or suspicious mail. confidence is a number from 0 to 1. summary is one short sentence. If unsure, use topic other and a lower confidence.\" }] },\n  contents: [{ role: \"user\", parts: [{ text: \"From: \" + $json.From + \"\\nSubject: \" + $json.Subject + \"\\nBody: \" + $json.snippet }] }],\n  generationConfig: { temperature: 0, responseMimeType: \"application/json\" }\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "64105c76-89da-4615-a26f-15b8e1042932",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "idYplZ37uO0tio7t",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const replies = $input.all();\nconst mails = $('Gmail Trigger').all();\n\nreturn replies.map((item, i) => {\n  const mail = mails[i].json;\n  let result;\n\n  try {\n    const raw = item.json.candidates[0].content.parts[0].text;\n    result = JSON.parse(raw);\n  } catch (e) {\n    // Safety net: if the reply is broken, mark it for manual review\n    result = { priority: \"normal\", topic: \"other\", confidence: 0, summary: \"Classification failed\" };\n  }\n\n  return {\n    json: {\n      gmail_id: mail.id,\n      sender: mail.From,\n      subject: mail.Subject,\n      priority: result.priority,\n      topic: result.topic,\n      confidence: result.confidence,\n      summary: result.summary,\n      processed_at: new Date().toISOString()\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "a3c4a5c1-418c-48b9-9a7e-e4609a14fbab",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "e0c8ff6d-d7a2-409f-acd2-d91d926864e6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "84a6e78b2a25b984fe72876d19d572cff882721fd9ed88b0cd2f212f1ec116bc"
+  },
+  "id": "sncUAB5bwMcGHrlN",
+  "tags": []
+}
